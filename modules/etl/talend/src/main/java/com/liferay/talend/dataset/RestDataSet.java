@@ -33,8 +33,18 @@ import org.talend.sdk.component.api.configuration.ui.layout.GridLayout;
 @GridLayout({@GridLayout.Row("_inputDataStore"), @GridLayout.Row("_endpoint")})
 public class RestDataSet implements Serializable {
 
+	public String getEndpoint() {
+		return _endpoint;
+	}
+
 	public InputDataStore getInputDataStore() {
 		return _inputDataStore;
+	}
+
+	public RestDataSet setEndpoint(String endpoint) {
+		_endpoint = endpoint;
+
+		return this;
 	}
 
 	public RestDataSet setInputDataStore(InputDataStore inputDataStore) {
