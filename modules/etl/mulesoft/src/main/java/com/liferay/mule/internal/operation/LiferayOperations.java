@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
 import org.mule.runtime.api.util.MultiMap;
+import org.mule.runtime.core.api.util.IOUtils;
 import org.mule.runtime.extension.api.annotation.error.Throws;
 import org.mule.runtime.extension.api.annotation.metadata.MetadataKeyId;
 import org.mule.runtime.extension.api.annotation.metadata.OutputResolver;
@@ -91,7 +92,7 @@ public class LiferayOperations {
 
 	@MediaType(MediaType.APPLICATION_JSON)
 	@OutputResolver(output = GETEndpointOutputTypeResolver.class)
-	public Result<InputStream, Void> get(
+	public String get(
 			@Connection LiferayConnection connection,
 			@MetadataKeyId(GETEndpointTypeKeysResolver.class) String endpoint,
 			@DisplayName("Path Parameters") @NullSafe @Optional
@@ -111,10 +112,7 @@ public class LiferayOperations {
 
 		InputStream inputStream = httpEntity.getContent();
 
-		return Result.<InputStream, Void>builder(
-		).output(
-			inputStream
-		).build();
+		return IOUtils.toString(inputStream);
 	}
 
 	@DisplayName("Update")
