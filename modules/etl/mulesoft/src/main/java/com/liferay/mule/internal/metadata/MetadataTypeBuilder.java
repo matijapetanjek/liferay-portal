@@ -76,7 +76,7 @@ public class MetadataTypeBuilder {
 
 			resolveArrayMetadataType(
 				arrayTypeBuilder, oasJsonNode,
-				_jsonNodeReader.getDescendantJsonNode(
+				jsonNodeReader.getDescendantJsonNode(
 					propertiesJsonNode, OASConstants.PATH_ITEMS_ITEMS_REF));
 
 			return arrayTypeBuilder.build();
@@ -115,7 +115,7 @@ public class MetadataTypeBuilder {
 			LiferayConnection liferayConnection =
 				liferayConnectionOptional.get();
 
-			return _jsonNodeReader.fromHttpResponse(
+			return jsonNodeReader.fromHttpResponse(
 				liferayConnection.getOpenAPISpec());
 		}
 		catch (IOException ioException) {
@@ -159,12 +159,12 @@ public class MetadataTypeBuilder {
 			referencePath, "ENDPOINT_TPL", endpoint, "OPERATION_TPL",
 			operation);
 
-		return _jsonNodeReader.fetchDescendantJsonNode(
+		return jsonNodeReader.fetchDescendantJsonNode(
 			openAPISpecJsonNode, path);
 	}
 
 	private JsonNode fetchRequiredJsonNode(JsonNode schemaJsonNode) {
-		return _jsonNodeReader.fetchDescendantJsonNode(
+		return jsonNodeReader.fetchDescendantJsonNode(
 			schemaJsonNode, OASConstants.REQUIRED);
 	}
 
@@ -237,7 +237,7 @@ public class MetadataTypeBuilder {
 			OASConstants.PATH_COMPONENTS_SCHEMAS_PATTERN, "SCHEMA_TPL",
 			schemaName);
 
-		return _jsonNodeReader.getDescendantJsonNode(openAPISpecJsonNode, path);
+		return jsonNodeReader.getDescendantJsonNode(openAPISpecJsonNode, path);
 	}
 
 	private String getSchemaName(String reference) {
@@ -283,10 +283,10 @@ public class MetadataTypeBuilder {
 		ArrayTypeBuilder nestedArrayTypeBuilder = objectFieldTypeBuilder.value(
 		).arrayType();
 
-		if (_jsonNodeReader.hasPath(
+		if (jsonNodeReader.hasPath(
 				propertyJsonNode, OASConstants.PATH_ITEMS_REF)) {
 
-			JsonNode referenceJsonNode = _jsonNodeReader.getDescendantJsonNode(
+			JsonNode referenceJsonNode = jsonNodeReader.getDescendantJsonNode(
 				propertyJsonNode, OASConstants.PATH_ITEMS_REF);
 
 			resolveArrayMetadataType(
@@ -402,6 +402,6 @@ public class MetadataTypeBuilder {
 		objectFieldTypeBuilder.value(getMetadataType(propertyJsonNode));
 	}
 
-	private final JsonNodeReader _jsonNodeReader = new JsonNodeReader();
+	private final JsonNodeReader jsonNodeReader = new JsonNodeReader();
 
 }
