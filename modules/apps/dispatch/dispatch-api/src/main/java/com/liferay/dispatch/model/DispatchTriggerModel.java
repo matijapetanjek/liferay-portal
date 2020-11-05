@@ -329,6 +329,20 @@ public interface DispatchTriggerModel
 	public void setSystem(boolean system);
 
 	/**
+	 * Returns the task cluster mode of this dispatch trigger.
+	 *
+	 * @return the task cluster mode of this dispatch trigger
+	 */
+	public int getTaskClusterMode();
+
+	/**
+	 * Sets the task cluster mode of this dispatch trigger.
+	 *
+	 * @param taskClusterMode the task cluster mode of this dispatch trigger
+	 */
+	public void setTaskClusterMode(int taskClusterMode);
+
+	/**
 	 * Returns the task executor type of this dispatch trigger.
 	 *
 	 * @return the task executor type of this dispatch trigger
