@@ -42,7 +42,7 @@ const ImportMappingItem = ({
 		[selectableFields, searchLabel, selectedField]
 	);
 
-	const inputId = `input-field-${field.label}`;
+	const inputId = `input-field-${field}`;
 
 	const onSearchChange = useCallback((event) => {
 		setSearchLabel(event.target.value);
@@ -76,7 +76,7 @@ const ImportMappingItem = ({
 
 	return (
 		<ClayForm.Group>
-			<label htmlFor={inputId}>{field.label}</label>
+			<label htmlFor={inputId}>{field}</label>
 
 			<ClayDropDown
 				active={dropDownActive}
@@ -146,11 +146,11 @@ const ImportMappingItem = ({
 };
 
 const buildDropdownItemsFromFields = (
-	fields = [],
+	selectableFields = [],
 	searchLabel,
 	selectedField
 ) => {
-	const allFields = [...fields];
+	const allFields = [...selectableFields];
 
 	if (selectedField) {
 		allFields.push(selectedField);
@@ -175,7 +175,7 @@ const buildDropdownItemsFromFields = (
 };
 
 ImportMappingItem.propTypes = {
-	field: PropTypes.shape(ImportFieldPropType).isRequired,
+	field: PropTypes.string.isRequired,
 	onChange: PropTypes.func,
 	selectableFields: PropTypes.arrayOf(PropTypes.shape(ImportFieldPropType)),
 	selectedField: PropTypes.shape(ImportFieldPropType),

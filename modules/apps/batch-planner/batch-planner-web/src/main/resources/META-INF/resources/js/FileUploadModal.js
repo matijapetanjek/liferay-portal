@@ -20,41 +20,48 @@ import {useIsMounted} from '@liferay/frontend-js-react-web';
 import PropTypes from 'prop-types';
 import React, {useEffect, useState} from 'react';
 
-import getFileParser from './FileParsers';
+import {parseCSV} from './FileParsers';
 
-const FileUploadModal = ({closeModal, fileToUpload, observer}) => {
+const FileUploadModal = ({closeModal, fileToInspect, observer}) => {
 	const [percentage, setPercentage] = useState(0);
 	const isMounted = useIsMounted();
 	const [errorMessage, setErrorMessage] = useState();
 
 	useEffect(() => {
-		async function uploadFile() {
-			try {
-				var reader = new FileReader();
-
-				reader.addEventListener('load', () => {
+		function uploadFile() {
+			const onComplete = (schema) => {
+				if (isMounted()) {
 					setPercentage(100);
-					Liferay.fire(
-						'file-schema',
-						getFileParser('CSV')(reader.result)
-					);
-				});
+					Liferay.fire('file-schema', {
+						schema,
+					});
+				}
+			};
 
-				reader.addEventListener('progress', (event) => {
+			const onError = () => {
+				if (isMounted()) {
+					setErrorMessage(Liferay.Language.get('unexpected-error'));
+				}
+			};
+
+			const onProgress = (event) => {
+				if (isMounted()) {
 					setPercentage(
 						Math.round((event.loaded / event.total) * 100)
 					);
-				});
+				}
+			};
 
-				reader.readAsText(fileToUpload);
-			}
-			catch (error) {
-				setErrorMessage(Liferay.Language.get('unexpected-error'));
-			}
+			return parseCSV({
+				file: fileToInspect,
+				onComplete,
+				onError,
+				onProgress,
+			});
 		}
 
-		uploadFile();
-	}, [isMounted, fileToUpload]);
+		return uploadFile();
+	}, [isMounted, fileToInspect]);
 
 	const isLoading = percentage !== 100;
 
@@ -131,7 +138,7 @@ const FileUploadModal = ({closeModal, fileToUpload, observer}) => {
 
 FileUploadModal.propTypes = {
 	closeModal: PropTypes.func.isRequired,
-	fileToUpload: PropTypes.object.isRequired,
+	fileToInspect: PropTypes.object.isRequired,
 	observer: PropTypes.object,
 };
 

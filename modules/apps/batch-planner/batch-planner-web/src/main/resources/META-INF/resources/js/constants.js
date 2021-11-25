@@ -18,3 +18,4 @@ export const EXPORT_PROCESS_FAILED = 'FAILED';
 
 export const EXPORT_POLL_INTERVAL = 1000;
 export const EXPORT_FILE_NAME = 'Export.zip';
+export const PARSE_FILE_CHUNK_SIZE = 64 * 1024;

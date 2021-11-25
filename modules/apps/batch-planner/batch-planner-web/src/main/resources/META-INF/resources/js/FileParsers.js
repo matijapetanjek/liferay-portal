@@ -12,19 +12,64 @@
  * details.
  */
 
-export function parseCSV(fileContent, fieldSeparator = ',') {
-	const header = fileContent.split('\n')[0];
+import {PARSE_FILE_CHUNK_SIZE} from './constants';
 
-	const columns = header.split(fieldSeparator);
+function extractFieldsFromCSV(content, fieldSeparator) {
+	if (content.indexOf('\n') > -1) {
+		const splitLines = content.split('\n');
 
-	return columns;
-}
+		const firstNoEmptyLine = splitLines.find((line) => line.length > 0);
 
-function getFileParser(format) {
-	switch (format) {
-		default:
-			return parseCSV;
+		return firstNoEmptyLine.split(fieldSeparator);
 	}
 }
 
-export default getFileParser;
+export function parseCSV({
+	fieldSeparator = ',',
+	file,
+	onComplete,
+	onError,
+	onProgress,
+}) {
+	let abort = false;
+	const fileSize = file.size;
+	let offset = 0;
+
+	const chunkReaderBlock = (_offset, length, _file) => {
+		const reader = new FileReader();
+		const blob = _file.slice(_offset, length + _offset);
+		reader.addEventListener('load', readEventHandler);
+		reader.readAsText(blob);
+	};
+
+	const readEventHandler = (event) => {
+		if (event.target.error || abort) {
+			return onError();
+		}
+
+		offset += event.target.result.length;
+
+		const fields = extractFieldsFromCSV(
+			event.target.result,
+			fieldSeparator
+		);
+
+		if (fields) {
+			return onComplete(fields);
+		}
+		else if (offset < fileSize) {
+			onProgress({loaded: offset, total: fileSize});
+		}
+		else {
+			return onError();
+		}
+
+		chunkReaderBlock(offset, PARSE_FILE_CHUNK_SIZE, file);
+	};
+
+	chunkReaderBlock(offset, PARSE_FILE_CHUNK_SIZE, file);
+
+	return () => {
+		abort = true;
+	};
+}

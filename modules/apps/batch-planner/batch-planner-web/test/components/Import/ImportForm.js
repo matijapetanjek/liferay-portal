@@ -47,6 +47,8 @@ const SCHEMA = {
 	},
 };
 
+const fileSchema = ['currencyCode', 'type', 'name'];
+
 describe('ImportForm', () => {
 	afterEach(cleanup);
 
@@ -63,10 +65,15 @@ describe('ImportForm', () => {
 			})
 		);
 
-		getByLabelText('id');
-		getByLabelText('name');
-		getByLabelText('type');
-		getByLabelText('currencyCode');
+		act(() =>
+			Liferay.fire('file-schema', {
+				schema: fileSchema,
+			})
+		);
+
+		getByLabelText(fileSchema[0]);
+		getByLabelText(fileSchema[1]);
+		getByLabelText(fileSchema[2]);
 	});
 
 	it('must select the item on user click dropdown item', () => {
@@ -76,6 +83,12 @@ describe('ImportForm', () => {
 		act(() =>
 			Liferay.fire('schema-selected', {
 				schema: SCHEMA,
+			})
+		);
+
+		act(() =>
+			Liferay.fire('file-schema', {
+				schema: fileSchema,
 			})
 		);
 
@@ -99,6 +112,12 @@ describe('ImportForm', () => {
 		act(() =>
 			Liferay.fire('schema-selected', {
 				schema: SCHEMA,
+			})
+		);
+
+		act(() =>
+			Liferay.fire('file-schema', {
+				schema: fileSchema,
 			})
 		);
 

@@ -28,7 +28,6 @@ function ImportForm({
 	formSaveAsTemplateURL,
 	portletNamespace,
 }) {
-	const [disable, setDisable] = useState(true);
 	const [fileFields, setFileFields] = useState();
 	const [dbFields, setDbFields] = useState();
 	const [fieldsSelections, setFieldsSelections] = useState({});
@@ -36,7 +35,7 @@ function ImportForm({
 	const onFieldChange = useCallback((selectedItem, field) => {
 		setFieldsSelections((prevSelections) => ({
 			...prevSelections,
-			[field.value]: selectedItem,
+			[field]: selectedItem,
 		}));
 	}, []);
 
@@ -45,21 +44,28 @@ function ImportForm({
 			const newSchema = event.schema;
 			if (newSchema) {
 				const newDBFields = getFieldsFromSchema(newSchema);
-				setFileFields(newDBFields);
 				setDbFields(newDBFields);
-
-				const newFieldsSelection = {};
-				newDBFields.forEach((f) => {
-					newFieldsSelection[f.value] = null;
-				});
-				setFieldsSelections(newFieldsSelection);
-				setDisable(false);
 			}
 		}
 
-		Liferay.on('schema-selected', handleSchemaUpdated);
+		function handleFileSchemaUpdate(event) {
+			const fileSchema = event.schema;
+			setFileFields(fileSchema);
 
-		return () => Liferay.detach('schema-selected', handleSchemaUpdated);
+			const newFieldsSelection = {};
+			fileSchema.forEach((f) => {
+				newFieldsSelection[f] = null;
+			});
+			setFieldsSelections(newFieldsSelection);
+		}
+
+		Liferay.on('schema-selected', handleSchemaUpdated);
+		Liferay.on('file-schema', handleFileSchemaUpdate);
+
+		return () => {
+			Liferay.detach('schema-selected', handleSchemaUpdated);
+			Liferay.detach('file-schema', handleFileSchemaUpdate);
+		};
 	}, []);
 
 	const selectableFields =
@@ -72,7 +78,7 @@ function ImportForm({
 
 	return (
 		<>
-			{fileFields && (
+			{fileFields && dbFields && (
 				<div className="card import-mapping-table">
 					<h4 className="card-header">
 						{Liferay.Language.get('import-mappings')}
@@ -84,12 +90,10 @@ function ImportForm({
 								{fileFields?.map((field) => (
 									<ImportMappingItem
 										field={field}
-										key={field.label}
+										key={field}
 										onChange={onFieldChange}
 										selectableFields={selectableFields}
-										selectedField={
-											fieldsSelections[field.value]
-										}
+										selectedField={fieldsSelections[field]}
 									/>
 								))}
 							</div>
@@ -112,7 +116,7 @@ function ImportForm({
 					</span>
 
 					<ImportSubmit
-						disabled={disable}
+						disabled={!(fileFields && dbFields)}
 						formImportDataQuerySelector={formDataQuerySelector}
 						formImportURL={formImportURL}
 						portletNamespace={portletNamespace}

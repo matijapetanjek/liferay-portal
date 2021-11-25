@@ -50,7 +50,7 @@ function FileUpload({portletNamespace}) {
 			{visible && (
 				<FileUploadModal
 					closeModal={onClose}
-					fileToUpload={fileToInspect}
+					fileToInspect={fileToInspect}
 					observer={observer}
 				/>
 			)}

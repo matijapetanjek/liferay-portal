@@ -14,16 +14,83 @@
 
 import {parseCSV} from '../../src/main/resources/META-INF/resources/js/FileParsers';
 
-describe('FileParsers', () => {
-	it('must correctly read header', () => {
-		const columns = parseCSV(`currencyCode,type,name
-            USD,site,My Channel 0
-            USD,site,My Channel 1
-            USD,site,My Channel 2
-            USD,site,My Channel 3
-            USD,site,My Channel 4
-        `);
+const fileContents = `currencyCode,type,name
+    USD,site,My Channel 0
+    USD,site,My Channel 1
+    USD,site,My Channel 2
+    USD,site,My Channel 3
+    USD,site,My Channel 4
+`;
+const fileSchema = ['currencyCode', 'type', 'name'];
+const file = new Blob([fileContents], {type: 'text/csv'});
+const readAsText = jest.fn();
+let dummyFileReader;
 
-		expect(columns).toStrictEqual(['currencyCode', 'type', 'name']);
+const onProgress = jest.fn();
+const onComplete = jest.fn();
+const onError = jest.fn();
+
+function mockFileReader(addEventListener) {
+	dummyFileReader = {
+		addEventListener,
+		loaded: false,
+		readAsText,
+		result: fileContents,
+	};
+	window.FileReader = jest.fn(() => dummyFileReader);
+}
+
+describe('FileParsers', () => {
+	beforeEach(() => {
+		jest.clearAllMocks();
+	});
+
+	it('must correctly call onProgress', () => {
+		const onProgressEvent = {
+			target: {
+				result: 'currencyCode,typ',
+			},
+		};
+
+		mockFileReader(
+			jest.fn((_, evtHandler) => {
+				evtHandler(onProgressEvent);
+			})
+		);
+
+		const onProgress = jest.fn();
+
+		parseCSV({
+			file,
+			onComplete,
+			onError,
+			onProgress,
+		});
+
+		expect(onProgress).toBeCalled();
+		expect(onComplete).not.toBeCalled();
+	});
+
+	it('must correctly call onComplete', () => {
+		const onProgressEvent = {
+			target: {
+				result: `currencyCode,type,name
+					USD,site,My Channel 0`,
+			},
+		};
+
+		mockFileReader(
+			jest.fn((_, evtHandler) => {
+				evtHandler(onProgressEvent);
+			})
+		);
+
+		parseCSV({
+			file,
+			onComplete,
+			onProgress,
+		});
+
+		expect(onComplete).toBeCalledWith(fileSchema);
 	});
 });
