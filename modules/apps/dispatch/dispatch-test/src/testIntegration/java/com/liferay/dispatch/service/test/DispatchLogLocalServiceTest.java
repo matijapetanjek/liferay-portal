@@ -141,6 +141,59 @@ public class DispatchLogLocalServiceTest {
 	}
 
 	@Test
+	public void testDeleteDispatchLogWhileInProgress() throws Exception {
+		Company company = CompanyTestUtil.addCompany();
+
+		User user = UserTestUtil.addUser(company);
+
+		Class<?> exceptionClass = Exception.class;
+
+		DispatchLog dispatchLogInProgress = DispatchLogTestUtil.randomDispatchLog(
+				user, DispatchTaskStatus.IN_PROGRESS);
+
+		try {
+			_dispatchLogLocalService.addDispatchLog(dispatchLogInProgress);
+		}
+		catch (Exception exception) {
+			exceptionClass = exception.getClass();
+		}
+
+		Assert.assertNotNull(_dispatchLogLocalService.fetchDispatchLog(dispatchLogInProgress.getDispatchLogId()));
+
+		try {
+			_dispatchLogLocalService.deleteDispatchLog(dispatchLogInProgress.getDispatchLogId());
+		}
+		catch (Exception exception) {
+			exceptionClass = exception.getClass();
+		}
+
+		Assert.assertEquals(
+				"Dispatch log cannot be deleted while task is in progress",
+				DispatchLogStatusException.class, exceptionClass);
+
+		DispatchLog dispatchLogNotInProgress = DispatchLogTestUtil.randomDispatchLog(
+				user, DispatchTaskStatus.SUCCESSFUL);
+
+		try {
+			_dispatchLogLocalService.addDispatchLog(dispatchLogNotInProgress);
+		}
+		catch (Exception exception) {
+			exceptionClass = exception.getClass();
+		}
+
+		Assert.assertNotNull(_dispatchLogLocalService.fetchDispatchLog(dispatchLogNotInProgress.getDispatchLogId()));
+
+		try {
+			_dispatchLogLocalService.deleteDispatchLog(dispatchLogNotInProgress.getDispatchLogId());
+		}
+		catch (Exception exception) {
+			exceptionClass = exception.getClass();
+		}
+
+		Assert.assertNull(_dispatchLogLocalService.fetchDispatchLog(dispatchLogNotInProgress.getDispatchLogId()));
+	}
+
+	@Test
 	public void testFetchLatestDispatchLog() throws Exception {
 		int dispatchLogsCount = RandomTestUtil.randomInt(10, 40);
 
