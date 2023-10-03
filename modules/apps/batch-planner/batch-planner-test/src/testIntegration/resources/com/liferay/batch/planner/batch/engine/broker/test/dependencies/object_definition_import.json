@@ -506,12 +506,16 @@
 				"engineLabel": "Groovy",
 				"errorLabel": {
 				},
+				"externalReferenceCode": "74ad169a-6ed2-d875-aff8-a5afde81682e",
 				"id": 36597,
 				"name": {
 					"en_US": "testValidation"
 				},
 				"objectDefinitionExternalReferenceCode": "TEST-OBJECT-DEFINITION-1",
 				"objectDefinitionId": 35588,
+				"objectValidationRuleSettings": [
+				],
+				"outputType": "fullValidation",
 				"script": "script_placeholder"
 			}
 		],
