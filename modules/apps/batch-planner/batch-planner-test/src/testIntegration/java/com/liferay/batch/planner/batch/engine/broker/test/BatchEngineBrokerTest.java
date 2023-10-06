@@ -43,6 +43,7 @@ import com.liferay.object.constants.ObjectDefinitionConstants;
 import com.liferay.object.constants.ObjectFieldSettingConstants;
 import com.liferay.object.constants.ObjectRelationshipConstants;
 import com.liferay.object.constants.ObjectValidationRuleConstants;
+import com.liferay.object.entry.util.ObjectEntryThreadLocal;
 import com.liferay.object.field.builder.AttachmentObjectFieldBuilder;
 import com.liferay.object.field.builder.BooleanObjectFieldBuilder;
 import com.liferay.object.field.builder.DateObjectFieldBuilder;
@@ -93,6 +94,7 @@ import com.liferay.portal.kernel.security.auth.PrincipalThreadLocal;
 import com.liferay.portal.kernel.security.permission.PermissionChecker;
 import com.liferay.portal.kernel.security.permission.PermissionCheckerFactoryUtil;
 import com.liferay.portal.kernel.security.permission.PermissionThreadLocal;
+import com.liferay.portal.kernel.service.UserLocalServiceUtil;
 import com.liferay.portal.kernel.test.constants.TestDataConstants;
 import com.liferay.portal.kernel.test.rule.AggregateTestRule;
 import com.liferay.portal.kernel.test.util.CompanyTestUtil;
@@ -158,15 +160,15 @@ public class BatchEngineBrokerTest {
 
 	@After
 	public void tearDown() throws Exception {
-		if (_objectDefinition1 != null) {
-			_objectDefinitionLocalService.deleteObjectDefinition(
-				_objectDefinition1.getObjectDefinitionId());
-		}
-
-		if (_objectDefinition2 != null) {
-			_objectDefinitionLocalService.deleteObjectDefinition(
-				_objectDefinition2.getObjectDefinitionId());
-		}
+//		if (_objectDefinition1 != null) {
+//			_objectDefinitionLocalService.deleteObjectDefinition(
+//				_objectDefinition1.getObjectDefinitionId());
+//		}
+//
+//		if (_objectDefinition2 != null) {
+//			_objectDefinitionLocalService.deleteObjectDefinition(
+//				_objectDefinition2.getObjectDefinitionId());
+//		}
 	}
 
 	@Test
@@ -176,7 +178,7 @@ public class BatchEngineBrokerTest {
 			TestPropsValues.getUser());
 
 		ObjectEntry objectEntry1 = _addObjectEntry(
-			TestPropsValues.getCompanyId(),
+			TestPropsValues.getCompanyId(), TestPropsValues.getGroupId(),
 			_objectDefinition1.getObjectDefinitionId(),
 			TestPropsValues.getUserId());
 
@@ -184,13 +186,13 @@ public class BatchEngineBrokerTest {
 
 		PortalInstances.initCompany(_company2);
 
-		User user = UserTestUtil.getAdminUser(_company2.getCompanyId());
+		User user = UserTestUtil.addCompanyAdminUser(_company2);
 
 		_objectDefinition2 = _publishObjectDefinition(
 			_company2.getCompanyId(), "TestObject", user);
 
 		_addObjectEntry(
-			_company2.getCompanyId(),
+			_company2.getCompanyId(), _company2.getGroupId(),
 			_objectDefinition2.getObjectDefinitionId(), user.getUserId());
 
 		BatchPlannerPlan batchPlannerPlan =
@@ -360,7 +362,9 @@ public class BatchEngineBrokerTest {
 			TestPropsValues.getUser());
 
 		File file = _createImportFile(
-			_addDLFileEntry(), _objectDefinition1.getExternalReferenceCode(),
+			_addDLFileEntry(
+				TestPropsValues.getGroupId(), TestPropsValues.getUserId()),
+			_objectDefinition1.getExternalReferenceCode(),
 			"object_entry_import_template.txt");
 
 		URI uri = file.toURI();
@@ -470,14 +474,14 @@ public class BatchEngineBrokerTest {
 			_objectDefinitionImportFieldNames, jsonNode.get(0));
 	}
 
-	private DLFileEntry _addDLFileEntry() throws Exception {
+	private DLFileEntry _addDLFileEntry(long groupId, long userId) throws Exception {
 		byte[] bytes = TestDataConstants.TEST_BYTE_ARRAY;
 
 		InputStream inputStream = new ByteArrayInputStream(bytes);
 
 		return _dlFileEntryLocalService.addFileEntry(
-			null, TestPropsValues.getUserId(), TestPropsValues.getGroupId(),
-			TestPropsValues.getGroupId(),
+			null, userId, groupId,
+			groupId,
 			DLFolderConstants.DEFAULT_PARENT_FOLDER_ID,
 			RandomTestUtil.randomString() + ".txt",
 			MimeTypesUtil.getExtensionContentType("txt"),
@@ -485,50 +489,69 @@ public class BatchEngineBrokerTest {
 			StringPool.BLANK, StringPool.BLANK,
 			DLFileEntryTypeConstants.FILE_ENTRY_TYPE_ID_BASIC_DOCUMENT, null,
 			null, inputStream, bytes.length, null, null,
-			ServiceContextTestUtil.getServiceContext(
-				TestPropsValues.getGroupId()));
+			ServiceContextTestUtil.getServiceContext(groupId));
 	}
 
 	private ObjectEntry _addObjectEntry(
-			long companyId, long objectDefinitionId, long userId)
+			long companyId, long groupId, long objectDefinitionId, long userId)
 		throws Exception {
 
-		DLFileEntry dlFileEntry = _addDLFileEntry();
+		String originalName = PrincipalThreadLocal.getName();
+		PermissionChecker originalPermissionChecker =
+			PermissionThreadLocal.getPermissionChecker();
 
-		return _objectEntryLocalService.addObjectEntry(
-			userId, 0, objectDefinitionId,
-			HashMapBuilder.<String, Serializable>put(
-				"testAttachmentField", dlFileEntry.getFileEntryId()
-			).put(
-				"testBooleanField", RandomTestUtil.randomBoolean()
-			).put(
-				"testDateField", "2022-01-01"
-			).put(
-				"testDateTimeField", "2023-07-27T12:00:00.000Z"
-			).put(
-				"testDecimalField", 7.5
-			).put(
-				"testIntegerField", RandomTestUtil.randomInt()
-			).put(
-				"testLongIntegerField", 123456789L
-			).put(
-				"testLongTextField", RandomTestUtil.randomString()
-			).put(
-				"testMultiselectPicklistField",
-				"listTypeEntryKey1, listTypeEntryKey2"
-			).put(
-				"testPicklistField", "listTypeEntryKey1"
-			).put(
-				"testPrecisionDecimalField",
-				new BigDecimal(0.1234567891234567, MathContext.DECIMAL64)
-			).put(
-				"testRichTextField",
-				"<p>Test text</p><p><img alt=\\\"\\\" height=\\\"202\\\" src=" +
-					"\\\"http://localhost:8080/image/company_logo?\\\"><br></p>"
-			).put(
-				"testTextField", RandomTestUtil.randomString()
-			).build(),
-			ServiceContextTestUtil.getServiceContext(companyId, 0, userId));
+		try (SafeCloseable safeCloseable =
+				CompanyThreadLocal.setWithSafeCloseable(companyId)) {
+
+			PermissionThreadLocal.setPermissionChecker(
+				PermissionCheckerFactoryUtil.create(
+					UserLocalServiceUtil.getUser(userId)));
+
+			PrincipalThreadLocal.setName(userId);
+
+			DLFileEntry dlFileEntry = _addDLFileEntry(groupId, userId);
+
+			return _objectEntryLocalService.addObjectEntry(
+				userId, 0, objectDefinitionId,
+				HashMapBuilder.<String, Serializable>put(
+					"testAttachmentField", dlFileEntry.getFileEntryId()
+				).put(
+					"testBooleanField", RandomTestUtil.randomBoolean()
+				).put(
+					"testDateField", "2022-01-01"
+				).put(
+					"testDateTimeField", "2023-07-27T12:00:00.000Z"
+				).put(
+					"testDecimalField", 7.5
+				).put(
+					"testIntegerField", RandomTestUtil.randomInt()
+				).put(
+					"testLongIntegerField", 123456789L
+				).put(
+					"testLongTextField", RandomTestUtil.randomString()
+				).put(
+					"testMultiselectPicklistField",
+					"listTypeEntryKey1, listTypeEntryKey2"
+				).put(
+					"testPicklistField", "listTypeEntryKey1"
+				).put(
+					"testPrecisionDecimalField",
+					new BigDecimal(0.1234567891234567, MathContext.DECIMAL64)
+				).put(
+					"testRichTextField",
+					"<p>Test text</p><p><img alt=\\\"\\\" height=\\\"202\\\" " +
+						"src=\\\"http://localhost:8080/image/company_logo?" +
+							"\\\"><br></p>"
+				).put(
+					"testTextField", RandomTestUtil.randomString()
+				).build(),
+				ServiceContextTestUtil.getServiceContext(companyId, 0, userId));
+		}
+		finally {
+			PermissionThreadLocal.setPermissionChecker(
+				originalPermissionChecker);
+			PrincipalThreadLocal.setName(originalName);
+		}
 	}
 
 	private void _assertActions(JsonNode fieldJsonNode, String fieldName) {
@@ -725,6 +748,8 @@ public class BatchEngineBrokerTest {
 			DefaultObjectEntryManagerProvider.provide(
 				_objectEntryManagerRegistry.getObjectEntryManager(
 					objectDefinition.getStorageType()));
+
+		ObjectEntryThreadLocal.setSkipObjectEntryResourcePermission(true);
 
 		return _objectMapper.convertValue(
 			defaultObjectEntryManager.getObjectEntry(
