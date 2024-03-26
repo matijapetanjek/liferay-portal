@@ -7,11 +7,8 @@ package com.liferay.batch.engine.internal.writer;
 
 import com.fasterxml.jackson.databind.util.ISO8601DateFormat;
 
-import com.liferay.list.type.service.ListTypeEntryLocalServiceUtil;
-import com.liferay.object.constants.ObjectFieldConstants;
-import com.liferay.object.model.ObjectField;
-import com.liferay.object.rest.dto.v1_0.ListEntry;
-import com.liferay.object.service.ObjectFieldLocalServiceUtil;
+import com.liferay.batch.engine.csv.ColumnDescriptor;
+import com.liferay.batch.engine.csv.ObjectFieldColumnDescriptors;
 import com.liferay.petra.function.UnsafeFunction;
 import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
@@ -20,7 +17,6 @@ import com.liferay.portal.kernel.exception.PortalException;
 import com.liferay.portal.kernel.log.Log;
 import com.liferay.portal.kernel.log.LogFactoryUtil;
 import com.liferay.portal.kernel.util.CSVUtil;
-import com.liferay.portal.kernel.util.GetterUtil;
 import com.liferay.portal.kernel.util.ListUtil;
 import com.liferay.portal.kernel.util.ObjectValuePair;
 
@@ -36,7 +32,6 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -46,13 +41,17 @@ import java.util.Set;
 public class ColumnValuesExtractor {
 
 	public ColumnValuesExtractor(
+			long companyId,
 			Map<String, ObjectValuePair<Field, Method>>
 				fieldNameObjectValuePairs,
-			List<String> fieldNames, long objectDefinitionId)
+			List<String> fieldNames,
+			ObjectFieldColumnDescriptors objectFieldColumnDescriptors,
+			String taskItemDelegateName)
 		throws PortalException {
 
 		_columnDescriptors = _getColumnDescriptors(
-			fieldNameObjectValuePairs, fieldNames, 0, objectDefinitionId, null);
+			companyId, fieldNameObjectValuePairs, fieldNames, 0,
+			objectFieldColumnDescriptors, null, taskItemDelegateName);
 	}
 
 	public List<Object[]> extractValues(Object item)
@@ -65,13 +64,14 @@ public class ColumnValuesExtractor {
 		List<ColumnDescriptor> childFieldColumnDescriptors = new ArrayList<>();
 
 		for (ColumnDescriptor columnDescriptor : _columnDescriptors) {
-			if (columnDescriptor._isChild()) {
+			if (columnDescriptor.isChild()) {
 				childFieldColumnDescriptors.add(columnDescriptor);
 
 				continue;
 			}
 
-			values[columnDescriptor._index] = columnDescriptor._getValue(item);
+			values[columnDescriptor.getIndex()] = columnDescriptor.getValue(
+				item);
 		}
 
 		valuesList.add(values);
@@ -81,16 +81,16 @@ public class ColumnValuesExtractor {
 		for (ColumnDescriptor childFieldColumnDescriptor :
 				childFieldColumnDescriptors) {
 
-			if (hash != childFieldColumnDescriptor._getParentHashCode()) {
-				hash = childFieldColumnDescriptor._getParentHashCode();
+			if (hash != childFieldColumnDescriptor.getParentHashCode()) {
+				hash = childFieldColumnDescriptor.getParentHashCode();
 
 				values = _getBlankValues(_columnDescriptors.length);
 
 				valuesList.add(values);
 			}
 
-			values[childFieldColumnDescriptor._index] =
-				childFieldColumnDescriptor._getValue(item);
+			values[childFieldColumnDescriptor.getIndex()] =
+				childFieldColumnDescriptor.getValue(item);
 		}
 
 		return valuesList;
@@ -100,7 +100,7 @@ public class ColumnValuesExtractor {
 		String[] headers = new String[_columnDescriptors.length];
 
 		for (ColumnDescriptor columnDescriptor : _columnDescriptors) {
-			headers[columnDescriptor._index] = columnDescriptor._getHeader();
+			headers[columnDescriptor.getIndex()] = columnDescriptor.getHeader();
 		}
 
 		return headers;
@@ -127,10 +127,13 @@ public class ColumnValuesExtractor {
 	}
 
 	private ColumnDescriptor[] _getColumnDescriptors(
+			long companyId,
 			Map<String, ObjectValuePair<Field, Method>>
 				fieldNameObjectValuePairs,
 			Collection<String> fieldNames, int masterIndex,
-			long objectDefinitionId, ColumnDescriptor parentColumnDescriptor)
+			ObjectFieldColumnDescriptors objectFieldColumnDescriptors,
+			ColumnDescriptor parentColumnDescriptor,
+			String taskItemDelegateName)
 		throws PortalException {
 
 		ColumnDescriptor[] columnDescriptors =
@@ -142,71 +145,24 @@ public class ColumnValuesExtractor {
 				fieldNameObjectValuePairs.get(fieldName);
 
 			if (objectValuePair == null) {
-				ObjectField objectField =
-					ObjectFieldLocalServiceUtil.getObjectField(
-						objectDefinitionId, fieldName);
+				ColumnDescriptor[] fieldColumnDescriptors =
+					objectFieldColumnDescriptors.getColumnDescriptors(
+						companyId, masterIndex, taskItemDelegateName, fieldName,
+						fieldNameObjectValuePairs.get("properties"));
 
-				if (Objects.equals(
-						objectField.getBusinessType(),
-						ObjectFieldConstants.
-							BUSINESS_TYPE_MULTISELECT_PICKLIST)) {
+				columnDescriptors = _combine(
+					columnDescriptors, fieldColumnDescriptors, localIndex);
 
-					ColumnDescriptor[] multiselectPickListColumnDescriptors =
-						_getMultiselectPickListColumnDescriptors(
-							fieldName, objectField.getListTypeDefinitionId(),
-							masterIndex, objectField.getBusinessType(),
-							parentColumnDescriptor,
-							fieldNameObjectValuePairs.get("properties"));
+				masterIndex += fieldColumnDescriptors.length;
 
-					columnDescriptors = _combine(
-						columnDescriptors, multiselectPickListColumnDescriptors,
-						localIndex);
-
-					masterIndex += multiselectPickListColumnDescriptors.length;
-
-					localIndex += multiselectPickListColumnDescriptors.length;
-
-					continue;
-				}
-
-				if (Objects.equals(
-						objectField.getBusinessType(),
-						ObjectFieldConstants.BUSINESS_TYPE_PICKLIST)) {
-
-					ColumnDescriptor[] pickListColumnDescriptors =
-						_getPickListColumnDescriptors(
-							fieldName, masterIndex,
-							objectField.getBusinessType(),
-							parentColumnDescriptor,
-							fieldNameObjectValuePairs.get("properties"));
-
-					columnDescriptors = _combine(
-						columnDescriptors, pickListColumnDescriptors,
-						localIndex);
-
-					masterIndex += pickListColumnDescriptors.length;
-
-					localIndex += pickListColumnDescriptors.length;
-
-					continue;
-				}
-
-				columnDescriptors[localIndex] = ColumnDescriptor._from(
-					null, fieldName, masterIndex++, null,
-					parentColumnDescriptor,
-					_getObjectEntryCustomFieldUnsafeFunction(
-						objectField.getBusinessType(),
-						fieldNameObjectValuePairs.get("properties"),
-						fieldName));
-
-				localIndex++;
+				localIndex += fieldColumnDescriptors.length;
 
 				continue;
 			}
 
 			Field field = objectValuePair.getKey();
 
-			columnDescriptors[localIndex] = ColumnDescriptor._from(
+			columnDescriptors[localIndex] = ColumnDescriptor.from(
 				field, field.getName(), masterIndex++,
 				objectValuePair.getValue(), parentColumnDescriptor,
 				_getPOJOFieldUnsafeFunction(
@@ -242,9 +198,10 @@ public class ColumnValuesExtractor {
 
 			ColumnDescriptor[] childFieldColumnDescriptors =
 				_getColumnDescriptors(
-					childFieldMethodPairsMap,
+					companyId, childFieldMethodPairsMap,
 					_sort(childFieldMethodPairsMap.keySet()), localIndex,
-					objectDefinitionId, columnDescriptors[localIndex]);
+					objectFieldColumnDescriptors, columnDescriptors[localIndex],
+					taskItemDelegateName);
 
 			columnDescriptors = _combine(
 				columnDescriptors, childFieldColumnDescriptors, localIndex);
@@ -261,184 +218,7 @@ public class ColumnValuesExtractor {
 		ColumnDescriptor columnDescriptor =
 			columnDescriptors[columnDescriptors.length - 1];
 
-		return columnDescriptor._index;
-	}
-
-	private String _getListEntryValue(Object object, String fieldName) {
-		ListEntry listEntry = (ListEntry)object;
-
-		if (Objects.equals(fieldName, "key")) {
-			return listEntry.getKey();
-		}
-
-		return listEntry.getName();
-	}
-
-	private String _getMultiselectListEntryValue(
-		List<ListEntry> listEntries, String fieldName) {
-
-		String[] parts = fieldName.split(StringPool.UNDERLINE);
-
-		int columnIndex = GetterUtil.getInteger(parts[1]);
-
-		if (listEntries.size() < columnIndex) {
-			return StringPool.BLANK;
-		}
-
-		ListEntry listEntry = listEntries.get(columnIndex - 1);
-
-		if (Objects.equals(parts[0], "key")) {
-			return listEntry.getKey();
-		}
-
-		return listEntry.getName();
-	}
-
-	private ColumnDescriptor[] _getMultiselectPickListColumnDescriptors(
-		String fieldName, long listTypeDefinitionId, int masterIndex,
-		String objectFieldBusinessType, ColumnDescriptor parentColumnDescriptor,
-		ObjectValuePair<Field, Method> propertiesObjectValuePair) {
-
-		int listTypeEntriesCount =
-			ListTypeEntryLocalServiceUtil.getListTypeEntriesCount(
-				listTypeDefinitionId);
-
-		ColumnDescriptor[] multiselectPickListColumnDescriptors =
-			new ColumnDescriptor[listTypeEntriesCount * 2];
-
-		int listTypeEntriesHeaderIndex = 1;
-
-		for (int i = 0; i < multiselectPickListColumnDescriptors.length;
-			 i = i + 2) {
-
-			multiselectPickListColumnDescriptors[i] = ColumnDescriptor._from(
-				null,
-				StringBundler.concat(
-					fieldName, ".key_", listTypeEntriesHeaderIndex),
-				masterIndex++, null, parentColumnDescriptor,
-				_getObjectEntryCustomFieldUnsafeFunction(
-					objectFieldBusinessType, propertiesObjectValuePair,
-					fieldName, "key_" + listTypeEntriesHeaderIndex));
-
-			multiselectPickListColumnDescriptors[i + 1] =
-				ColumnDescriptor._from(
-					null,
-					StringBundler.concat(
-						fieldName, ".name_", listTypeEntriesHeaderIndex),
-					masterIndex++, null, parentColumnDescriptor,
-					_getObjectEntryCustomFieldUnsafeFunction(
-						objectFieldBusinessType, propertiesObjectValuePair,
-						fieldName, "name_" + listTypeEntriesHeaderIndex));
-
-			listTypeEntriesHeaderIndex++;
-		}
-
-		return multiselectPickListColumnDescriptors;
-	}
-
-	private UnsafeFunction<Object, Object, ReflectiveOperationException>
-		_getObjectEntryCustomFieldUnsafeFunction(
-			String objectFieldBusinessType,
-			ObjectValuePair<Field, Method> propertiesObjectValuePair,
-			String... fieldNames) {
-
-		if (Objects.equals(
-				objectFieldBusinessType,
-				ObjectFieldConstants.BUSINESS_TYPE_MULTISELECT_PICKLIST)) {
-
-			return new UnsafeFunction
-				<Object, Object, ReflectiveOperationException>() {
-
-				@Override
-				public Object apply(Object object)
-					throws ReflectiveOperationException {
-
-					Map<?, ?> map = (Map<?, ?>)_getValue(
-						object, propertiesObjectValuePair);
-
-					Object value = map.get(fieldNames[0]);
-
-					if (value == null) {
-						return StringPool.BLANK;
-					}
-
-					return _getMultiselectListEntryValue(
-						(List<ListEntry>)value, fieldNames[1]);
-				}
-
-			};
-		}
-
-		if (Objects.equals(
-				objectFieldBusinessType,
-				ObjectFieldConstants.BUSINESS_TYPE_PICKLIST)) {
-
-			return new UnsafeFunction
-				<Object, Object, ReflectiveOperationException>() {
-
-				@Override
-				public Object apply(Object object)
-					throws ReflectiveOperationException {
-
-					Map<?, ?> map = (Map<?, ?>)_getValue(
-						object, propertiesObjectValuePair);
-
-					Object value = map.get(fieldNames[0]);
-
-					if (value == null) {
-						return StringPool.BLANK;
-					}
-
-					return _getListEntryValue(value, fieldNames[1]);
-				}
-
-			};
-		}
-
-		return new UnsafeFunction
-			<Object, Object, ReflectiveOperationException>() {
-
-			@Override
-			public Object apply(Object object)
-				throws ReflectiveOperationException {
-
-				Map<?, ?> map = (Map<?, ?>)_getValue(
-					object, propertiesObjectValuePair);
-
-				Object value = map.get(fieldNames[0]);
-
-				if (value == null) {
-					return StringPool.BLANK;
-				}
-
-				return CSVUtil.encode(value);
-			}
-
-		};
-	}
-
-	private ColumnDescriptor[] _getPickListColumnDescriptors(
-		String fieldName, int masterIndex, String objectFieldBusinessType,
-		ColumnDescriptor parentColumnDescriptor,
-		ObjectValuePair<Field, Method> propertiesObjectValuePair) {
-
-		ColumnDescriptor[] pickListColumnDescriptors = new ColumnDescriptor[2];
-
-		pickListColumnDescriptors[0] = ColumnDescriptor._from(
-			null, fieldName + ".key", masterIndex++, null,
-			parentColumnDescriptor,
-			_getObjectEntryCustomFieldUnsafeFunction(
-				objectFieldBusinessType, propertiesObjectValuePair, fieldName,
-				"key"));
-
-		pickListColumnDescriptors[1] = ColumnDescriptor._from(
-			null, fieldName + ".name", masterIndex++, null,
-			parentColumnDescriptor,
-			_getObjectEntryCustomFieldUnsafeFunction(
-				objectFieldBusinessType, propertiesObjectValuePair, fieldName,
-				"name"));
-
-		return pickListColumnDescriptors;
+		return columnDescriptor.getIndex();
 	}
 
 	private UnsafeFunction<Object, Object, ReflectiveOperationException>
@@ -601,150 +381,5 @@ public class ColumnValuesExtractor {
 		ColumnValuesExtractor.class);
 
 	private final ColumnDescriptor[] _columnDescriptors;
-
-	private static class ColumnDescriptor {
-
-		@Override
-		public boolean equals(Object object) {
-			if (this == object) {
-				return true;
-			}
-
-			if (!(object instanceof ColumnDescriptor)) {
-				return false;
-			}
-
-			ColumnDescriptor columnDescriptor = (ColumnDescriptor)object;
-
-			if (Objects.equals(_field, columnDescriptor._field) &&
-				_parentColumnDescriptors.equals(
-					columnDescriptor._parentColumnDescriptors)) {
-
-				return true;
-			}
-
-			return false;
-		}
-
-		@Override
-		public int hashCode() {
-			return _field.hashCode();
-		}
-
-		private static ColumnDescriptor _from(
-			Field field, String fieldName, int index, Method method,
-			ColumnDescriptor parentColumnDescriptor,
-			UnsafeFunction<Object, Object, ReflectiveOperationException>
-				unsafeFunction) {
-
-			ColumnDescriptor columnDescriptor = new ColumnDescriptor(
-				field, fieldName, index, method, unsafeFunction);
-
-			if (parentColumnDescriptor == null) {
-				return columnDescriptor;
-			}
-
-			columnDescriptor._add(parentColumnDescriptor);
-
-			return columnDescriptor;
-		}
-
-		private ColumnDescriptor(
-			Field field, String fieldName, int index, Method method,
-			UnsafeFunction<Object, Object, ReflectiveOperationException>
-				unsafeFunction) {
-
-			_field = field;
-			_fieldName = fieldName;
-			_index = index;
-			_method = method;
-			_unsafeFunction = unsafeFunction;
-		}
-
-		private void _add(ColumnDescriptor columnDescriptor) {
-			if (!columnDescriptor._parentColumnDescriptors.isEmpty()) {
-				_parentColumnDescriptors.addAll(
-					columnDescriptor._parentColumnDescriptors);
-			}
-
-			_parentColumnDescriptors.add(columnDescriptor);
-		}
-
-		private String _getHeader() {
-			StringBundler sb = new StringBundler(
-				(_parentColumnDescriptors.size() * 2) + 2);
-
-			for (ColumnDescriptor columnDescriptor : _parentColumnDescriptors) {
-				sb.append(columnDescriptor._getSanitizedFieldName());
-				sb.append(StringPool.PERIOD);
-			}
-
-			sb.append(_getSanitizedFieldName());
-
-			return sb.toString();
-		}
-
-		private int _getParentHashCode() {
-			if (_parentColumnDescriptors.isEmpty()) {
-				throw new UnsupportedOperationException();
-			}
-
-			ColumnDescriptor columnDescriptor = _parentColumnDescriptors.get(
-				_parentColumnDescriptors.size() - 1);
-
-			return columnDescriptor.hashCode();
-		}
-
-		private String _getSanitizedFieldName() {
-			if (_fieldName.startsWith(StringPool.UNDERLINE)) {
-				return _fieldName.substring(1);
-			}
-
-			return _fieldName;
-		}
-
-		private Object _getValue(Object object)
-			throws ReflectiveOperationException {
-
-			if (!_isChild()) {
-				return _unsafeFunction.apply(object);
-			}
-
-			Object result = object;
-
-			for (ColumnDescriptor columnDescriptor : _parentColumnDescriptors) {
-				if (columnDescriptor._method == null) {
-					result = columnDescriptor._field.get(result);
-				}
-				else {
-					result = columnDescriptor._method.invoke(result);
-				}
-
-				if (result == null) {
-					return StringPool.BLANK;
-				}
-			}
-
-			return _unsafeFunction.apply(result);
-		}
-
-		private boolean _isChild() {
-			if (_parentColumnDescriptors.isEmpty()) {
-				return false;
-			}
-
-			return true;
-		}
-
-		private final Field _field;
-		private final String _fieldName;
-		private final int _index;
-		private final Method _method;
-		private final List<ColumnDescriptor> _parentColumnDescriptors =
-			new ArrayList<>();
-		private final UnsafeFunction
-			<Object, Object, ReflectiveOperationException> _unsafeFunction;
-
-	}
 
 }

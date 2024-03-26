@@ -5,11 +5,14 @@
 
 package com.liferay.object.rest.internal.deployer;
 
+import com.liferay.batch.engine.csv.ObjectFieldColumnDescriptors;
+import com.liferay.list.type.service.ListTypeEntryLocalService;
 import com.liferay.object.deployer.ObjectDefinitionDeployer;
 import com.liferay.object.exception.NoSuchObjectDefinitionException;
 import com.liferay.object.model.ObjectDefinition;
 import com.liferay.object.related.models.ObjectRelatedModelsProviderRegistry;
 import com.liferay.object.rest.dto.v1_0.ObjectEntry;
+import com.liferay.object.rest.internal.batch.engine.ObjectFieldColumnDescriptorsImpl;
 import com.liferay.object.rest.internal.graphql.dto.v1_0.ObjectDefinitionGraphQLDTOContributor;
 import com.liferay.object.rest.internal.jaxrs.application.ObjectEntryApplication;
 import com.liferay.object.rest.internal.jaxrs.context.provider.ObjectDefinitionContextProvider;
@@ -326,6 +329,20 @@ public class ObjectDefinitionDeployerImpl implements ObjectDefinitionDeployer {
 		else {
 			applicationServiceRegistration.setProperties(properties);
 		}
+
+		_objectFieldsCSVDescriptorServiceRegistrationsMap.put(
+			objectDefinition.getObjectDefinitionId(),
+			_bundleContext.registerService(
+				ObjectFieldColumnDescriptors.class,
+				new ObjectFieldColumnDescriptorsImpl(
+					_listTypeEntryLocalService, _objectDefinitionLocalService,
+					_objectFieldLocalService),
+				HashMapDictionaryBuilder.<String, Object>put(
+					"batch.engine.task.item.delegate.name",
+					objectDefinition.getName()
+				).put(
+					"companyId", objectDefinition.getCompanyId()
+				).build()));
 
 		_scopedServiceRegistrationsMap.compute(
 			restContextPath,
@@ -694,6 +711,10 @@ public class ObjectDefinitionDeployerImpl implements ObjectDefinitionDeployer {
 		_undeployRestContextPathCompanyIds(companyId, restContextPath);
 		_undeployScopedServiceRegistrationsMap(companyId, restContextPath);
 
+		_objectFieldsCSVDescriptorServiceRegistrationsMap.get(
+			objectDefinition.getObjectDefinitionId()
+		).unregister();
+
 		if (_shouldUnregisterApplication(restContextPath)) {
 			_unregisterApplication(restContextPath);
 		}
@@ -870,6 +891,9 @@ public class ObjectDefinitionDeployerImpl implements ObjectDefinitionDeployer {
 	private Language _language;
 
 	@Reference
+	private ListTypeEntryLocalService _listTypeEntryLocalService;
+
+	@Reference
 	private ObjectActionLocalService _objectActionLocalService;
 
 	@Reference
@@ -895,6 +919,9 @@ public class ObjectDefinitionDeployerImpl implements ObjectDefinitionDeployer {
 
 	@Reference
 	private ObjectFieldLocalService _objectFieldLocalService;
+
+	private final Map<Long, ServiceRegistration<ObjectFieldColumnDescriptors>>
+		_objectFieldsCSVDescriptorServiceRegistrationsMap = new HashMap<>();
 
 	@Reference
 	private ObjectRelatedModelsProviderRegistry

@@ -48,7 +48,7 @@ public class XLSBatchEngineExportTaskItemWriterImpl
 		_outputStream = outputStream;
 
 		_columnValuesExtractor = new ColumnValuesExtractor(
-			fieldNameObjectValuePairs, fieldNames, objectDefinitionId);
+			1, fieldNameObjectValuePairs, fieldNames, null, null);
 
 		_sheet = _workbook.createSheet();
 
